@@ -1,0 +1,3 @@
+struct Response {
+    protocolo: String,
+}
