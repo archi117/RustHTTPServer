@@ -1,13 +1,30 @@
 // Librerías necesarias
-use std::net::SocketAddr;
-use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
-use hyper::body::Bytes;
-use hyper::server::conn::http1;
-use hyper::service::service_fn;
-use hyper::{Request, Response};
+use hyper::{
+    body::Bytes,
+    server::conn::http1,
+    service::service_fn,
+    {Request, Response, Method, StatusCode}
+};
+
+use http_body_util::{
+    combinators::BoxBody, 
+    BodyExt,
+    Empty, 
+    Full
+};
+
+use std::{
+    io::{self, Error, ErrorKind}, 
+    net::SocketAddr, 
+    path::Path,
+    fs
+};
+
 use hyper_util::rt::TokioIo;
 use tokio::net::TcpListener;
-use hyper::{Method, StatusCode};
+
+const INDEX: &str = "/home/archi/Codigos/RustHTTPServer/templates/index.html";
+
 
 //use hyper::body::Frame;
 
@@ -18,19 +35,37 @@ async fn hello(_: Request<hyper::body::Incoming>) -> Result<Response<BoxBody<Byt
 
 }
 
+fn html_to_bytes(ruta:&Path) -> io::Result<String> {
+    match fs::read_to_string(ruta)  {
+        Ok(contenido_html) => Ok(contenido_html),
+        Err(_) => Err(Error::new(ErrorKind::Other, "No se pudo cargar el documento HTML")),
+    }
+}
+
+
 // Tabla para hacer el ruteo
 async fn routing(req: Request<hyper::body::Incoming>) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
     match (req.method(), req.uri().path()) {
-        (&Method::GET, "/") => Ok(Response::new(full(
-            "Try POSTing data to /echo",
-        ))),
-
-        //(&Method::POST, "/echo") => {
-            // we'll be back
-        //},
+        (&Method::GET, "/") => {
+            match html_to_bytes(Path::new(&INDEX)) {
+                Ok(html) => Ok(
+                    Response::builder()
+                        .header("Content-Type", "text/html; charset=utf-8")
+                        .status(StatusCode::OK)
+                        .body(full(html))
+                        .unwrap()
+                ),
+                
+                Err(error) => Ok(
+                    Response::builder()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .body(full(error.to_string()))
+                        .unwrap()
+                ),
+            }
+        },
 
         (&Method::GET, "/hello") => hello(req).await,
-
 
         // Return 404 Not Found for other routes.
         _ => {
